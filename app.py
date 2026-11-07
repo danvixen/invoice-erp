@@ -1,4 +1,4 @@
-import streamlit as st
+﻿import streamlit as st
 import sqlite3
 import google.generativeai as genai
 import json
@@ -13,6 +13,434 @@ import email
 from email.header import decode_header
 from datetime import date, timedelta
 import notifier
+
+# ==================== СЛОВАРЬ ПЕРЕВОДОВ ====================
+TRANSLATIONS = {
+    "en": {
+        "lang_en": "🇬🇧 EN", "lang_et": "🇪🇪 ET", "lang_ru": "🇷🇺 RU",
+        "auth_title": "💳 Invoice ERP",
+        "auth_subtitle": "Smart Accounts Payable & Invoicing Hub",
+        "login_tab": "🔑 Sign In",
+        "signup_tab": "📝 Register",
+        "email_label": "Work Email:",
+        "email_placeholder": "name@firma.ee",
+        "password_label": "Password:",
+        "login_btn": "Sign In",
+        "pending_approval": "⏳ Your application is awaiting administrator approval.",
+        "invalid_credentials": "Invalid email or password.",
+        "forgot_pwd": "Forgot password?",
+        "tab_req_code": "Request Code",
+        "tab_new_pwd": "Set Password",
+        "send_code_btn": "Send Code",
+        "code_sent": "Code sent to {email}!",
+        "user_not_found": "User not found or inactive.",
+        "code_label": "Code:",
+        "new_pass_label": "New password:",
+        "save_pass_btn": "Save Password",
+        "pass_updated": "Password updated! Please sign in.",
+        "invalid_code": "Invalid verification code.",
+        "signup_caption": "Register new employee:",
+        "name_label": "Full Name:",
+        "create_pass_label": "Create Password:",
+        "signup_btn": "Submit Application",
+        "fill_all_fields": "Please fill in all fields.",
+        "role_admin": "Superadmin",
+        "role_user": "Employee",
+        "manager_mode": "👁️ Manager Mode (all invoices)",
+        "caption_all": "Viewing all employees' invoices",
+        "caption_my": "Viewing only your personal invoices",
+        "logout_btn": "🚪 Sign Out",
+        "imap_expander": "⚙️ My Email (IMAP for invoices)",
+        "imap_caption": "Mailbox settings for auto-fetching invoices:",
+        "imap_server": "IMAP Server:",
+        "imap_port": "Port (SSL):",
+        "imap_login": "Login / Email:",
+        "imap_pass": "App Password:",
+        "imap_folder": "Folder to check:",
+        "imap_save_btn": "Save Settings",
+        "imap_saved": "Settings saved!",
+        "access_requests": "🔔 Access Requests",
+        "btn_approve": "✅ Approve",
+        "btn_reject": "❌ Reject",
+        "user_activated": "{name} activated!",
+        "user_rejected": "Request rejected.",
+        "no_requests": "No pending requests.",
+        "due_tomorrow_alert": "⏰ **Payment due tomorrow ({date}):** Invoice #{id} from **{sender}** for **{amount} €** (Payer: {payer})",
+        "overdue_alert": "🚨 **Overdue payment!** Due was {date}. Invoice #{id} from **{sender}** for **{amount} €**",
+        "kpi_total": "TOTAL INVOICES",
+        "kpi_paid": "PAID",
+        "kpi_pending": "TO PAY",
+        "kpi_overdue": "OVERDUE",
+        "tab_registry": "🧾 Registry & Processing",
+        "tab_archive": "📦 Invoice Archive",
+        "tab_senders": "🏢 Vendors",
+        "tab_payers": "👤 Payers & Projects",
+        "add_hdr": "📥 Add Invoice",
+        "mode_label": "Method:",
+        "mode_ai": "⚡ AI File Parsing",
+        "mode_manual": "✍️ Manual",
+        "mode_mail": "📧 Fetch from Email",
+        "attach_label": "Upload invoice (PDF, PNG, JPG)",
+        "btn_save_invoice": "Save invoice",
+        "ai_processing": "AI is analyzing document and extracting details...",
+        "ai_added": "Added: {sender} | {amount} €",
+        "ai_error": "Recognition error: {err}",
+        "field_vendor": "Vendor (Pay to):",
+        "field_payer": "Payer:",
+        "default_payer": "Main Payer",
+        "field_amount": "Amount (€):",
+        "field_due_date": "Due date:",
+        "field_iban": "Beneficiary IBAN (optional):",
+        "field_ref": "Reference number (optional):",
+        "err_specify_vendor": "Please specify vendor.",
+        "invoice_saved": "Invoice saved!",
+        "mail_guide_title": "📖 Guide: Auto-fetching invoices via Email",
+        "mail_guide_body": "### 🚀 3 steps for email auto-fetch:\n1. Open **«⚙️ My Email (IMAP)»** in the left sidebar.\n2. Keep vendor incoming email **unread** (`UNSEEN`) with attached **PDF/JPG**.\n3. Click button below.",
+        "mail_not_configured": "⚠️ Email is not configured yet in the left sidebar.",
+        "mail_connected": "Connected mailbox: **{user}** | Folder: **{folder}**",
+        "btn_check_mail": "📥 Check email and fetch new invoices",
+        "mail_scanning": "Scanning unread invoice attachments...",
+        "mail_success": "🎉 Successfully added invoices: **{count}**!",
+        "mail_empty": "ℹ️ No unread emails with invoices found.",
+        "pending_hdr": "📋 Pending Invoices",
+        "status_pending": "PENDING",
+        "status_paid": "PAID",
+        "status_archived": "ARCHIVED",
+        "meta_due": "📅 Due:",
+        "meta_no_due": "No due date",
+        "meta_payer": "👤 Payer:",
+        "meta_author": "• Author:",
+        "bank_label": "Bank:",
+        "btn_view_file": "📄 File ({name})",
+        "btn_paid": "💳 Paid",
+        "btn_archive": "📦 To Archive",
+        "pop_due_btn": "⏰ Due",
+        "pop_new_date": "New date:",
+        "pop_save_btn": "Save",
+        "pop_del_btn": "🗑️ Delete",
+        "pop_del_confirm": "Delete invoice?",
+        "btn_yes": "Yes",
+        "no_pending_invoices": "No pending invoices.",
+        "arch_hdr": "📦 Invoice Archive",
+        "arch_summary": "Total archived invoices: **{count}** | Total sum: **{total} €**",
+        "arch_badge": "ARCHIVED",
+        "arch_paid_on": "• Paid on: {date}",
+        "btn_restore": "↩️ Restore",
+        "pop_del_perm": "Delete permanently?",
+        "arch_restored": "Invoice restored to pending!",
+        "arch_empty": "Archive is empty.",
+        "senders_hdr": "🏢 Vendor Analytics",
+        "select_vendor": "Select vendor:",
+        "kpi_vendor_total": "Total ({name})",
+        "kpi_vendor_paid": "Paid",
+        "kpi_vendor_pending": "Balance to pay",
+        "th_num": "№", "th_due": "Due date", "th_payer": "Payer", "th_amount": "Amount (€)", "th_iban": "IBAN", "th_ref": "Reference no", "th_status": "Status", "th_vendor": "Vendor",
+        "no_vendor_data": "No vendor data.",
+        "registry_empty": "Registry is empty.",
+        "payers_hdr": "👤 Analytics by Payers & Projects",
+        "select_payer": "Select payer:",
+        "kpi_payer_total": "Total ({name})",
+        "kpi_payer_paid": "Paid",
+        "kpi_payer_pending": "Pending payment",
+        "btn_csv_export": "📥 Download statement for {name} (CSV)",
+        "no_payer_data": "No payer data."
+    },
+    "et": {
+        "lang_en": "🇬🇧 EN", "lang_et": "🇪🇪 ET", "lang_ru": "🇷🇺 RU",
+        "auth_title": "💳 Invoice ERP",
+        "auth_subtitle": "Nutikas ostuarvete ja finantshalduskeskus",
+        "login_tab": "🔑 Logi sisse",
+        "signup_tab": "📝 Registreeru",
+        "email_label": "Töö e-post:",
+        "email_placeholder": "nimi@firma.ee",
+        "password_label": "Parool:",
+        "login_btn": "Sisene süsteemi",
+        "pending_approval": "⏳ Teie registreerimistaotlus ootab administraatori kinnitust.",
+        "invalid_credentials": "Vale e-posti aadress või parool.",
+        "forgot_pwd": "Unustasid parooli?",
+        "tab_req_code": "Koodi taotlemine",
+        "tab_new_pwd": "Uus parool",
+        "send_code_btn": "Saada kood",
+        "code_sent": "Kinnituskood saadeti aadressile {email}!",
+        "user_not_found": "Kasutajat ei leitud või konto pole aktiivne.",
+        "code_label": "Kood:",
+        "new_pass_label": "Uus parool:",
+        "save_pass_btn": "Salvesta parool",
+        "pass_updated": "Parool uuendatud! Logige sisse.",
+        "invalid_code": "Vale kinnituskood.",
+        "signup_caption": "Uue töötaja registreerimine:",
+        "name_label": "Ees- ja perekonnanimi:",
+        "create_pass_label": "Mõtle välja parool:",
+        "signup_btn": "Saada taotlus",
+        "fill_all_fields": "Palun täitke kõik väljad.",
+        "role_admin": "Peaadministraator",
+        "role_user": "Töötaja",
+        "manager_mode": "👁️ Juhi režiim (kõik arved)",
+        "caption_all": "Kõigi töötajate arvete koondvaade",
+        "caption_my": "Kuvatakse ainult teie isiklikke arveid",
+        "logout_btn": "🚪 Logi välja",
+        "imap_expander": "⚙️ Minu e-post (IMAP arvete jaoks)",
+        "imap_caption": "Postkasti seaded arvete automaatseks allalaadimiseks:",
+        "imap_server": "IMAP Server:",
+        "imap_port": "Port (SSL):",
+        "imap_login": "Kasutaja / E-post:",
+        "imap_pass": "Rakenduse parool:",
+        "imap_folder": "Kaust kontrollimiseks:",
+        "imap_save_btn": "Salvesta seaded",
+        "imap_saved": "Seaded on salvestatud!",
+        "access_requests": "🔔 Juurdepääsutaotlused",
+        "btn_approve": "✅ Kinnita",
+        "btn_reject": "❌ Lükka tagasi",
+        "user_activated": "{name} on aktiveeritud!",
+        "user_rejected": "Taotlus tagasi lükatud.",
+        "no_requests": "Uusi taotlusi ei ole.",
+        "due_tomorrow_alert": "⏰ **Maksetähtaeg homme ({date}):** Arve #{id} tarnijalt **{sender}** summale **{amount} €** (Maksja: {payer})",
+        "overdue_alert": "🚨 **Tähtaja ületanud makse!** Tähtaeg oli {date}. Arve #{id} tarnijalt **{sender}** summale **{amount} €**",
+        "kpi_total": "ARVEID KOKKU",
+        "kpi_paid": "MAKSTUD",
+        "kpi_pending": "MAKSTOPEAL",
+        "kpi_overdue": "TÄHTAJA ÜLETANUD",
+        "tab_registry": "🧾 Register ja töötlemine",
+        "tab_archive": "📦 Arhiiv",
+        "tab_senders": "🏢 Tarnijad",
+        "tab_payers": "👤 Maksjad ja projektid",
+        "add_hdr": "📥 Lisa arve",
+        "mode_label": "Lisamise viis:",
+        "mode_ai": "⚡ AI dokumendi tuvastus",
+        "mode_manual": "✍️ Käsitsi",
+        "mode_mail": "📧 Tõmba e-postist",
+        "attach_label": "Laadi arve üles (PDF, PNG, JPG)",
+        "btn_save_invoice": "Salvesta arve",
+        "ai_processing": "AI analüüsib dokumenti ja loeb andmeid...",
+        "ai_added": "Lisatud: {sender} | {amount} €",
+        "ai_error": "Tuvastamise viga: {err}",
+        "field_vendor": "Tarnija (Kellele):",
+        "field_payer": "Maksja:",
+        "default_payer": "Põhimaksja",
+        "field_amount": "Summa (€):",
+        "field_due_date": "Maksetähtaeg:",
+        "field_iban": "Saaja IBAN (valikuline):",
+        "field_ref": "Viitenumber (valikuline):",
+        "err_specify_vendor": "Palun märkige tarnija.",
+        "invoice_saved": "Arve salvestatud!",
+        "mail_guide_title": "📖 Juhend: Arvete automaatne vastuvõtmine e-postist",
+        "mail_guide_body": "### 🚀 3 sammu arvete automaatseks laadimiseks:\n1. Ava **«⚙️ Minu e-post (IMAP)»** vasakmenüüs.\n2. Jäta kiri **lugemata** (`UNSEEN`) koos **PDF/JPG**-ga.\n3. Klõpsa nuppu allpool.",
+        "mail_not_configured": "⚠️ E-post pole veel vasakpoolses menüüs seadistatud.",
+        "mail_connected": "Ühendatud postkast: **{user}** | Kaust: **{folder}**",
+        "btn_check_mail": "📥 Kontrolli e-posti ja laadi uued arved",
+        "mail_scanning": "Loetakse postkastist lugemata manuseid...",
+        "mail_success": "🎉 Edukalt lisatud arveid: **{count}**!",
+        "mail_empty": "ℹ️ Lugemata arvetega kirju ei leitud.",
+        "pending_hdr": "📋 Tasumisele kuuluvad arved",
+        "status_pending": "OOTAB TASUMIST",
+        "status_paid": "MAKSTUD",
+        "status_archived": "ARHIIVIS",
+        "meta_due": "📅 Tähtaeg:",
+        "meta_no_due": "Ilma tähtajata",
+        "meta_payer": "👤 Maksja:",
+        "meta_author": "• Autor:",
+        "bank_label": "Pank:",
+        "btn_view_file": "📄 Fail ({name})",
+        "btn_paid": "💳 Makstud",
+        "btn_archive": "📦 Arhiivi",
+        "pop_due_btn": "⏰ Tähtaeg",
+        "pop_new_date": "Uus kuupäev:",
+        "pop_save_btn": "Salvesta",
+        "pop_del_btn": "🗑️ Kustuta",
+        "pop_del_confirm": "Kas kustutada arve?",
+        "btn_yes": "Jah",
+        "no_pending_invoices": "Tasumist ootavaid arveid ei ole.",
+        "arch_hdr": "📦 Arhiiv",
+        "arch_summary": "Arveid arhiivis kokku: **{count}** | Kogusumma: **{total} €**",
+        "arch_badge": "ARHIIVIS",
+        "arch_paid_on": "• Makstud: {date}",
+        "btn_restore": "↩️ Taasta",
+        "pop_del_perm": "Kustutada lõplikult?",
+        "arch_restored": "Arve tagastatud töösse!",
+        "arch_empty": "Arhiiv on tühi.",
+        "senders_hdr": "🏢 Tarnijate analüütika",
+        "select_vendor": "Vali tarnija:",
+        "kpi_vendor_total": "Kokku ({name})",
+        "kpi_vendor_paid": "Välja makstud",
+        "kpi_vendor_pending": "Jääk maksmisele",
+        "th_num": "№", "th_due": "Maksetähtaeg", "th_payer": "Maksja", "th_amount": "Summa (€)", "th_iban": "IBAN", "th_ref": "Viitenumber", "th_status": "Olek", "th_vendor": "Tarnija",
+        "no_vendor_data": "Tarnija andmed puuduvad.",
+        "registry_empty": "Register on tühi.",
+        "payers_hdr": "👤 Maksjate ja projektide analüütika",
+        "select_payer": "Vali maksja:",
+        "kpi_payer_total": "Kokku ({name})",
+        "kpi_payer_paid": "Makstud",
+        "kpi_payer_pending": "Ootab maksmist",
+        "btn_csv_export": "📥 Laadi alla väljavõte maksja {name} kohta (CSV)",
+        "no_payer_data": "Maksjate andmed puuduvad."
+    },
+    "ru": {
+        "lang_en": "🇬🇧 EN", "lang_et": "🇪🇪 ET", "lang_ru": "🇷🇺 RU",
+        "auth_title": "💳 Invoice ERP",
+        "auth_subtitle": "Smart Accounts Payable & Invoicing Hub",
+        "login_tab": "🔑 Вход",
+        "signup_tab": "📝 Регистрация",
+        "email_label": "Рабочий Email:",
+        "email_placeholder": "name@firma.ee",
+        "password_label": "Пароль:",
+        "login_btn": "Войти в кабинет",
+        "pending_approval": "⏳ Ваша заявка ожидает подтверждения администратором.",
+        "invalid_credentials": "Неверный email или пароль.",
+        "forgot_pwd": "Забыли пароль?",
+        "tab_req_code": "Запрос кода",
+        "tab_new_pwd": "Смена пароля",
+        "send_code_btn": "Выслать код",
+        "code_sent": "Код отправлен на {email}!",
+        "user_not_found": "Пользователь не найден или не активен.",
+        "code_label": "Код:",
+        "new_pass_label": "Новый пароль:",
+        "save_pass_btn": "Сохранить пароль",
+        "pass_updated": "Пароль обновлен! Войдите.",
+        "invalid_code": "Неверный код.",
+        "signup_caption": "Регистрация нового сотрудника в системе:",
+        "name_label": "Имя и фамилия:",
+        "create_pass_label": "Придумайте пароль:",
+        "signup_btn": "Отправить заявку",
+        "fill_all_fields": "Заполните все поля.",
+        "role_admin": "Главный Администратор",
+        "role_user": "Сотрудник",
+        "manager_mode": "👁️ Режим руководителя (все счета)",
+        "caption_all": "Сводный просмотр счетов всех сотрудников",
+        "caption_my": "Отображаются только ваши личные счета",
+        "logout_btn": "🚪 Выйти из системы",
+        "imap_expander": "⚙️ Моя почта (IMAP для счетов)",
+        "imap_caption": "Параметры ящика для автоматического скачивания счетов:",
+        "imap_server": "IMAP Сервер:",
+        "imap_port": "Порт (SSL):",
+        "imap_login": "Логин / Email:",
+        "imap_pass": "Пароль приложения:",
+        "imap_folder": "Папка для проверки:",
+        "imap_save_btn": "Сохранить параметры",
+        "imap_saved": "Настройки сохранены!",
+        "access_requests": "🔔 Заявки на доступ",
+        "btn_approve": "✅ Одобрить",
+        "btn_reject": "❌ Отклонить",
+        "user_activated": "{name} активирован!",
+        "user_rejected": "Отклонено.",
+        "no_requests": "Новых заявок нет.",
+        "due_tomorrow_alert": "⏰ **Срок оплаты завтра ({date}):** Счет #{id} от **{sender}** на сумму **{amount} €** (Плательщик: {payer})",
+        "overdue_alert": "🚨 **Просрочен платеж!** Срок был {date}. Счет #{id} от **{sender}** на сумму **{amount} €**",
+        "kpi_total": "ВСЕГО ПО СЧЕТАМ",
+        "kpi_paid": "ОПЛАЧЕНО",
+        "kpi_pending": "К ОПЛАТЕ",
+        "kpi_overdue": "ПРОСРОЧЕНО",
+        "tab_registry": "🧾 Реестр и обработка",
+        "tab_archive": "📦 Архив счетов",
+        "tab_senders": "🏢 Поставщики (Кому)",
+        "tab_payers": "👤 Плательщики (Кто)",
+        "add_hdr": "📥 Внести счет",
+        "mode_label": "Способ добавления:",
+        "mode_ai": "⚡ AI-распознавание файла",
+        "mode_manual": "✍️ Вручную",
+        "mode_mail": "📧 Стянуть из личной почты",
+        "attach_label": "Загрузить счет (PDF, PNG, JPG)",
+        "btn_save_invoice": "Сохранить счет",
+        "ai_processing": "AI анализирует документ и извлекает реквизиты...",
+        "ai_added": "Добавлено: {sender} | {amount} €",
+        "ai_error": "Ошибка распознавания: {err}",
+        "field_vendor": "Поставщик (Кому):",
+        "field_payer": "Плательщик:",
+        "default_payer": "Основной плательщик",
+        "field_amount": "Сумма (€):",
+        "field_due_date": "Срок оплаты:",
+        "field_iban": "IBAN получателя (необязательно):",
+        "field_ref": "Viitenumber (необязательно):",
+        "err_specify_vendor": "Укажите поставщика.",
+        "invoice_saved": "Счет сохранен!",
+        "mail_guide_title": "📖 Памятка: Как подключить почту и стягивать счета",
+        "mail_guide_body": "### 🚀 3 шага для автозабора счетов:\n1. В меню слева откройте **«⚙️ Моя почта (IMAP)»**.\n2. Оставьте письмо **непрочитанным** (`UNSEEN`) с вложением **PDF/JPG**.\n3. Нажмите кнопку ниже.",
+        "mail_not_configured": "⚠️ Почта еще не настроена в боковом меню слева.",
+        "mail_connected": "Подключен ящик: **{user}** | Папка: **{folder}**",
+        "btn_check_mail": "📥 Проверить почту и загрузить новые счета",
+        "mail_scanning": "Считывание непрочитанных вложений из ящика...",
+        "mail_success": "🎉 Успешно добавлено счетов: **{count}**!",
+        "mail_empty": "ℹ️ Непрочитанных писем со счетами не найдено.",
+        "pending_hdr": "📋 Текущие счета к оплате",
+        "status_pending": "ОЖИДАЕТ ОПЛАТЫ",
+        "status_paid": "ОПЛАЧЕН",
+        "status_archived": "В АРХИВЕ",
+        "meta_due": "📅 Срок:",
+        "meta_no_due": "Без срока",
+        "meta_payer": "👤 Плательщик:",
+        "meta_author": "• Автор:",
+        "bank_label": "Банк:",
+        "btn_view_file": "📄 Файл ({name})",
+        "btn_paid": "💳 Оплачен",
+        "btn_archive": "📦 В архив",
+        "pop_due_btn": "⏰ Срок",
+        "pop_new_date": "Новая дата:",
+        "pop_save_btn": "Сохранить",
+        "pop_del_btn": "🗑️ Удалить",
+        "pop_del_confirm": "Удалить счет?",
+        "btn_yes": "Да",
+        "no_pending_invoices": "Активных счетов нет.",
+        "arch_hdr": "📦 Архив счетов",
+        "arch_summary": "Всего счетов в архиве: **{count}** | Общая сумма: **{total} €**",
+        "arch_badge": "В АРХИВЕ",
+        "arch_paid_on": "• Оплачен: {date}",
+        "btn_restore": "↩️ Вернуть",
+        "pop_del_perm": "Удалить навсегда?",
+        "arch_restored": "Счет возвращен в работу!",
+        "arch_empty": "Архив пуст.",
+        "senders_hdr": "🏢 Аналитика по поставщикам",
+        "select_vendor": "Выберите поставщика:",
+        "kpi_vendor_total": "Всего ({name})",
+        "kpi_vendor_paid": "Выплачено",
+        "kpi_vendor_pending": "Остаток к оплате",
+        "th_num": "№", "th_due": "Срок оплаты", "th_payer": "Плательщик", "th_amount": "Сумма (€)", "th_iban": "IBAN", "th_ref": "Viitenumber", "th_status": "Статус", "th_vendor": "Поставщик",
+        "no_vendor_data": "Нет данных о поставщиках.",
+        "registry_empty": "Реестр пуст.",
+        "payers_hdr": "👤 Аналитика по плательщикам и проектам",
+        "select_payer": "Выберите плательщика:",
+        "kpi_payer_total": "Всего ({name})",
+        "kpi_payer_paid": "Оплачено",
+        "kpi_payer_pending": "Ожидает оплаты",
+        "btn_csv_export": "📥 Скачать выписку по {name} (CSV)",
+        "no_payer_data": "Нет данных о плательщиках."
+    }
+}
+
+def get_lang():
+    if "lang" not in st.session_state:
+        st.session_state["lang"] = "en"
+    return st.session_state["lang"]
+
+def t(key: str, **kwargs) -> str:
+    lang = get_lang()
+    text = TRANSLATIONS.get(lang, TRANSLATIONS["en"]).get(key, key)
+    if kwargs and isinstance(text, str):
+        try:
+            return text.format(**kwargs)
+        except Exception:
+            return text
+    return text
+
+def render_top_language_bar():
+    c_empty, c_lang = st.columns([3.8, 1.2])
+    with c_lang:
+        current = get_lang()
+        options = ["en", "et", "ru"]
+        labels = {
+            "en": TRANSLATIONS["en"]["lang_en"],
+            "et": TRANSLATIONS["et"]["lang_et"],
+            "ru": TRANSLATIONS["ru"]["lang_ru"]
+        }
+        selected = st.radio(
+            "Lang",
+            options=options,
+            index=options.index(current),
+            format_func=lambda x: labels[x],
+            horizontal=True,
+            label_visibility="collapsed"
+        )
+        if selected != current:
+            st.session_state["lang"] = selected
+            st.rerun()
 
 # ==================== ХРАНИЛИЩЕ И СЕТЬ ====================
 STORAGE_DIR = r"C:\invoice_assistant\storage"
@@ -37,8 +465,8 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded"
 )
+render_top_language_bar()
 
-# ==================== СТИЛИЗАЦИЯ И ДИЗАЙН (CSS) ====================
 CUSTOM_CSS = """
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap');
@@ -58,7 +486,6 @@ h1, h2, h3, h4 {
     letter-spacing: -0.02em;
 }
 
-/* Карточки KPI вверху */
 [data-testid="stMetric"] {
     background: linear-gradient(145deg, rgba(30, 41, 59, 0.5) 0%, rgba(15, 23, 42, 0.7) 100%);
     border: 1px solid rgba(148, 163, 184, 0.15);
@@ -80,7 +507,6 @@ h1, h2, h3, h4 {
     font-size: 24px !important;
 }
 
-/* Карточка счета */
 .invoice-card {
     background: linear-gradient(145deg, rgba(30, 41, 59, 0.6) 0%, rgba(15, 23, 42, 0.8) 100%);
     border: 1px solid rgba(148, 163, 184, 0.16);
@@ -133,7 +559,6 @@ h1, h2, h3, h4 {
 .badge-paid { background: rgba(34, 197, 94, 0.18); color: #4ade80; border: 1px solid rgba(34, 197, 94, 0.4); }
 .badge-archived { background: rgba(148, 163, 184, 0.15); color: #cbd5e1; border: 1px solid rgba(148, 163, 184, 0.3); }
 
-/* АККУРАТНЫЕ ПЛАШКИ IBAN И VIITENUMBER С ВЫДЕЛЕНИЕМ И КОПИРОВАНИЕМ МЫШКОЙ */
 .req-container {
     display: inline-flex;
     align-items: stretch;
@@ -178,7 +603,6 @@ h1, h2, h3, h4 {
     background: rgba(148, 163, 184, 0.22);
 }
 
-/* Банки-чипы */
 .bank-chip {
     display: inline-flex;
     align-items: center;
@@ -200,7 +624,6 @@ h1, h2, h3, h4 {
 .bank-coop { background: #0284c7; color: #ffffff !important; }
 .bank-luminor { background: #4a044e; color: #ffffff !important; }
 
-/* Кнопки без многоточий */
 div[data-testid="column"] button {
     white-space: nowrap !important;
     text-overflow: clip !important;
@@ -249,7 +672,6 @@ def get_lan_ip():
     except Exception:
         return "localhost"
 
-# ==================== БАЗА ДАННЫХ И МИГРАЦИИ ====================
 def hash_password(password: str) -> str:
     return hashlib.sha256(password.encode("utf-8")).hexdigest()
 
@@ -327,7 +749,6 @@ def init_db():
 
 conn = init_db()
 
-# ==================== АКТИВАЦИЯ ПО ССЫЛКЕ В 1 КЛИК ====================
 approve_token = None
 try:
     if "approve" in st.query_params:
@@ -345,17 +766,16 @@ if approve_token:
         u_id, u_name, u_email = pending
         cur.execute("UPDATE users SET is_active = 1, approval_token = NULL WHERE id = ?", (u_id,))
         conn.commit()
-        st.success(f"🎉 Пользователь **{u_name}** ({u_email}) успешно активирован!")
-        notify_body = f"<p>Здравствуйте, {u_name}!</p><p>Ваша учетная запись в <b>Invoice ERP</b> активирована.</p>"
-        notifier.send_email(u_email, "Доступ в Invoice ERP активирован", notify_body)
+        st.success(f"🎉 {u_name} ({u_email}) activated!")
+        notify_body = f"<p>Hello, {u_name}!</p><p>Your account in <b>Invoice ERP</b> has been activated.</p>"
+        notifier.send_email(u_email, "Invoice ERP access approved", notify_body)
     else:
-        st.info("ℹ️ Заявка уже была активирована ранее.")
+        st.info("ℹ️ Already activated.")
     try:
         del st.query_params["approve"]
     except Exception:
         pass
 
-# ==================== ФАЙЛЫ И GEMINI ====================
 def save_file_to_storage(file_bytes: bytes, original_filename: str, sender: str) -> str:
     try:
         os.makedirs(STORAGE_DIR, exist_ok=True)
@@ -378,17 +798,17 @@ def save_file_to_storage(file_bytes: bytes, original_filename: str, sender: str)
         return ""
 
 def extract_invoice_data(file_bytes: bytes, mime_type: str):
-    model = genai.GenerativeModel("gemini-3.8-flash")
+    model = genai.GenerativeModel("gemini-2.5-flash")
     inline_doc = {"mime_type": mime_type, "data": file_bytes}
     prompt = """
-    Извлеки реквизиты и данные из счета/чека. Ответ строго JSON без markdown:
+    Extract invoice fields. Return STRICT JSON without markdown:
     {
-      "payer": "Плательщик",
-      "sender": "Поставщик (получатель)",
+      "payer": "Payer name",
+      "sender": "Vendor / Sender",
       "amount": 0.00,
       "due_date": "YYYY-MM-DD",
-      "iban": "IBAN получателя без пробелов",
-      "reference_number": "Viitenumber без слова Viitenumber"
+      "iban": "IBAN without spaces",
+      "reference_number": "Reference number without word Viitenumber"
     }
     """
     resp = model.generate_content([inline_doc, prompt])
@@ -414,7 +834,7 @@ def fetch_invoices_via_imap(server, port, user, password, folder, user_email):
         imap.login(user, password)
         status, _ = imap.select(f'"{folder}"' if " " in folder else folder)
         if status != "OK":
-            return 0, [f"Папка '{folder}' не найдена."]
+            return 0, [f"Folder '{folder}' not found."]
         status, search_data = imap.search(None, "UNSEEN")
         if status != "OK" or not search_data[0]:
             imap.logout()
@@ -439,10 +859,10 @@ def fetch_invoices_via_imap(server, port, user, password, folder, user_email):
                     m_type = "application/pdf" if ext == ".pdf" else "image/jpeg"
                     try:
                         data = extract_invoice_data(f_bytes, m_type)
-                        s_name = data.get("sender") or "Не указан"
+                        s_name = data.get("sender") or "Vendor"
                         amt = float(data.get("amount") or 0.0)
                         d_date = data.get("due_date") or (date.today() + timedelta(days=7)).strftime("%Y-%m-%d")
-                        p_name = data.get("payer") or "Основной плательщик"
+                        p_name = data.get("payer") or t("default_payer")
                         iban_v = (data.get("iban") or "").replace(" ", "").strip()
                         ref_v = (str(data.get("reference_number") or "")).replace(" ", "").strip()
                         s_path = save_file_to_storage(f_bytes, filename, s_name)
@@ -458,29 +878,20 @@ def fetch_invoices_via_imap(server, port, user, password, folder, user_email):
         imap.logout()
         return len(pulled), errors
     except Exception as e:
-        return 0, [f"Ошибка IMAP: {e}"]
+        return 0, [f"IMAP Error: {e}"]
 
 def notify_admin_new_user(name: str, email: str, token: str):
     global_link = f"{PUBLIC_URL}/?approve={token}" if PUBLIC_URL else f"http://{get_lan_ip()}:8501/?approve={token}"
-    subject = f"🔔 Новая заявка на регистрацию: {name}"
+    subject = f"🔔 New registration: {name}"
     html_body = f"""
-    <div style="font-family: Arial, sans-serif; color: #2c3e50; line-height: 1.6; max-width: 580px; padding: 20px; border: 1px solid #e2e8f0; border-radius: 10px;">
-        <h3 style="color: #0f172a; margin-top: 0;">Новая заявка на доступ в Invoice ERP</h3>
-        <p>Сотрудник подал заявку на регистрацию в системе:</p>
-        <div style="background: #f8fafc; padding: 12px 16px; border-left: 4px solid #38bdf8; border-radius: 4px; margin: 15px 0;">
-            <div style="margin: 3px 0;"><b>Имя:</b> {name}</div>
-            <div style="margin: 3px 0;"><b>Email:</b> {email}</div>
-        </div>
-        <div style="text-align: center; margin: 25px 0;">
-            <a href="{global_link}" style="background-color: #10b981; color: white; padding: 12px 26px; text-decoration: none; font-size: 15px; font-weight: bold; border-radius: 6px; display: inline-block;">
-                ✅ Активировать доступ в 1 клик
-            </a>
-        </div>
+    <div style="font-family: Arial, sans-serif; padding: 20px;">
+        <h3>New access request in Invoice ERP</h3>
+        <p><b>Name:</b> {name}<br><b>Email:</b> {email}</p>
+        <p><a href="{global_link}" style="background: #10b981; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Approve 1-Click</a></p>
     </div>
     """
     notifier.send_email(ADMIN_EMAIL, subject, html_body)
 
-# ==================== АВТОРИЗАЦИЯ ====================
 if "user" not in st.session_state:
     st.session_state.user = None
 
@@ -502,23 +913,22 @@ def apply_for_registration(email, password, name):
         )
         conn.commit()
         notify_admin_new_user(name.strip(), email.strip().lower(), token)
-        return True, "Заявка отправлена! Администратор активирует ваш доступ."
+        return True, t("signup_caption")
     except sqlite3.IntegrityError:
-        return False, "Пользователь с таким email уже существует."
+        return False, "User exists"
 
-# Экран логина
 if not st.session_state.user:
-    st.markdown("<div style='text-align: center; margin-top: 50px; margin-bottom: 25px;'><h1 style='font-size: 36px; margin-bottom: 4px;'>💳 Invoice ERP</h1><p style='color: #94a3b8; font-size: 15px;'>Smart Accounts Payable & Invoicing Hub</p></div>", unsafe_allow_html=True)
+    st.markdown(f"<div style='text-align: center; margin-top: 50px; margin-bottom: 25px;'><h1 style='font-size: 36px; margin-bottom: 4px;'>{t('auth_title')}</h1><p style='color: #94a3b8; font-size: 15px;'>{t('auth_subtitle')}</p></div>", unsafe_allow_html=True)
     _, col_auth, _ = st.columns([1.5, 1.4, 1.5])
     
     with col_auth:
-        tab_login, tab_signup = st.tabs(["Вход в систему", "Подать заявку на доступ"])
+        tab_login, tab_signup = st.tabs([t("login_tab"), t("signup_tab")])
         
         with tab_login:
             with st.form("login_form"):
-                log_email = st.text_input("Рабочий Email:", placeholder="name@firma.ee")
-                log_pass = st.text_input("Пароль:", type="password", placeholder="••••••••")
-                submit_btn = st.form_submit_button("Войти в кабинет", width='stretch', type="primary")
+                log_email = st.text_input(t("email_label"), placeholder=t("email_placeholder"))
+                log_pass = st.text_input(t("password_label"), type="password", placeholder="••••••••")
+                submit_btn = st.form_submit_button(t("login_btn"), width='stretch', type="primary")
                 if submit_btn:
                     user_data = login_user(log_email, log_pass)
                     if user_data:
@@ -527,15 +937,15 @@ if not st.session_state.user:
                             st.session_state.user = {"id": u_id, "email": u_email, "name": u_name, "role": u_role}
                             st.rerun()
                         else:
-                            st.warning("⏳ Ваша заявка ожидает подтверждения администратором.")
+                            st.warning(t("pending_approval"))
                     else:
-                        st.error("Неверный email или пароль.")
+                        st.error(t("invalid_credentials"))
 
-            with st.expander("Забыли пароль?"):
-                t1, t2 = st.tabs(["Запросить код", "Сменить"])
+            with st.expander(t("forgot_pwd")):
+                t1, t2 = st.tabs([t("tab_req_code"), t("tab_new_pwd")])
                 with t1:
-                    r_email = st.text_input("Email:", key="r_mail")
-                    if st.button("Выслать код", width='stretch'):
+                    r_email = st.text_input(t("email_label"), key="r_mail")
+                    if st.button(t("send_code_btn"), width='stretch'):
                         cur = conn.cursor()
                         cur.execute("SELECT id, is_active FROM users WHERE email = ?", (r_email.strip().lower(),))
                         row = cur.fetchone()
@@ -543,15 +953,15 @@ if not st.session_state.user:
                             code = str(random.randint(100000, 999999))
                             cur.execute("REPLACE INTO reset_tokens (email, token) VALUES (?, ?)", (r_email.strip().lower(), code))
                             conn.commit()
-                            notifier.send_email(r_email.strip().lower(), "Сброс пароля Invoice ERP", f"<p>Код: <b>{code}</b></p>")
-                            st.success(f"Код отправлен на {r_email}!")
+                            notifier.send_email(r_email.strip().lower(), "Reset Code", f"<p>Code: <b>{code}</b></p>")
+                            st.success(t("code_sent", email=r_email))
                         else:
-                            st.error("Пользователь не найден или не активен.")
+                            st.error(t("user_not_found"))
                 with t2:
-                    v_mail = st.text_input("Email:", key="v_mail")
-                    v_code = st.text_input("Код:", key="v_code")
-                    v_pass = st.text_input("Новый пароль:", type="password", key="v_pass")
-                    if st.button("Сохранить пароль", width='stretch'):
+                    v_mail = st.text_input(t("email_label"), key="v_mail")
+                    v_code = st.text_input(t("code_label"), key="v_code")
+                    v_pass = st.text_input(t("new_pass_label"), type="password", key="v_pass")
+                    if st.button(t("save_pass_btn"), width='stretch'):
                         cur = conn.cursor()
                         cur.execute("SELECT token FROM reset_tokens WHERE email = ?", (v_mail.strip().lower(),))
                         r = cur.fetchone()
@@ -559,36 +969,35 @@ if not st.session_state.user:
                             cur.execute("UPDATE users SET password_hash = ? WHERE email = ?", (hash_password(v_pass), v_mail.strip().lower()))
                             cur.execute("DELETE FROM reset_tokens WHERE email = ?", (v_mail.strip().lower(),))
                             conn.commit()
-                            st.success("Пароль обновлен! Войдите.")
+                            st.success(t("pass_updated"))
                         else:
-                            st.error("Неверный код.")
+                            st.error(t("invalid_code"))
 
         with tab_signup:
             with st.form("signup_form"):
-                st.caption("Регистрация нового сотрудника в системе:")
-                reg_name = st.text_input("Имя и фамилия:")
-                reg_email = st.text_input("Рабочий Email:")
-                reg_pass = st.text_input("Придумайте пароль:", type="password")
-                signup_btn = st.form_submit_button("Отправить заявку", width='stretch', type="primary")
+                st.caption(t("signup_caption"))
+                reg_name = st.text_input(t("name_label"))
+                reg_email = st.text_input(t("email_label"))
+                reg_pass = st.text_input(t("create_pass_label"), type="password")
+                signup_btn = st.form_submit_button(t("signup_btn"), width='stretch', type="primary")
                 if signup_btn:
                     if reg_name.strip() and reg_email.strip() and reg_pass:
                         ok, msg = apply_for_registration(reg_email, reg_pass, reg_name)
                         if ok:
-                            st.success(msg)
+                            st.success(t("pending_approval"))
                         else:
                             st.error(msg)
                     else:
-                        st.warning("Заполните все поля.")
+                        st.warning(t("fill_all_fields"))
     st.stop()
 
 current_user = st.session_state.user
 if not current_user:
     st.stop()
 
-# ==================== БОКОВАЯ ПАНЕЛЬ ====================
 with st.sidebar:
     role_icon = "👑" if current_user['role'] == "superadmin" else "💼"
-    role_label = "Главный Администратор" if current_user['role'] == "superadmin" else "Сотрудник"
+    role_label = t("role_admin") if current_user['role'] == "superadmin" else t("role_user")
     
     st.markdown(f"""
     <div class="user-profile-box">
@@ -600,14 +1009,13 @@ with st.sidebar:
     
     view_all_users = False
     if current_user["role"] == "superadmin":
-        view_all_users = st.toggle("👁️ Режим руководителя (все счета)", value=False)
-        st.caption("Сводный просмотр счетов всех сотрудников" if view_all_users else "Отображаются только ваши личные счета")
+        view_all_users = st.toggle(t("manager_mode"), value=False)
+        st.caption(t("caption_all") if view_all_users else t("caption_my"))
 
-    if st.button("🚪 Выйти из системы", width='stretch'):
+    if st.button(t("logout_btn"), width='stretch'):
         st.session_state.user = None
         st.rerun()
 
-    # --- НАСТРОЙКИ ПОЧТЫ (IMAP) ---
     st.markdown("<hr style='border-color: rgba(255,255,255,0.08); margin: 16px 0;'>", unsafe_allow_html=True)
     cur = conn.cursor()
     cur.execute("SELECT imap_server, imap_port, imap_user, imap_password, imap_folder FROM users WHERE id = ?", (current_user["id"],))
@@ -619,32 +1027,31 @@ with st.sidebar:
     cur_pass = u_imap[3] or ""
     cur_folder = u_imap[4] or "INBOX"
 
-    with st.expander("⚙️ Моя почта (IMAP для счетов)"):
-        st.caption("Параметры ящика для автоматического скачивания счетов:")
+    with st.expander(t("imap_expander")):
+        st.caption(t("imap_caption"))
         with st.form("imap_settings_form"):
-            new_srv = st.text_input("IMAP Сервер:", value=cur_server)
-            new_port = st.number_input("Порт (SSL):", value=int(cur_port), step=1)
-            new_usr = st.text_input("Логин/Email:", value=cur_user)
-            new_pwd = st.text_input("Пароль приложения:", value=cur_pass, type="password")
-            new_fld = st.text_input("Папка для проверки:", value=cur_folder)
+            new_srv = st.text_input(t("imap_server"), value=cur_server)
+            new_port = st.number_input(t("imap_port"), value=int(cur_port), step=1)
+            new_usr = st.text_input(t("imap_login"), value=cur_user)
+            new_pwd = st.text_input(t("imap_pass"), value=cur_pass, type="password")
+            new_fld = st.text_input(t("imap_folder"), value=cur_folder)
             
-            if st.form_submit_button("Сохранить параметры", width='stretch'):
+            if st.form_submit_button(t("imap_save_btn"), width='stretch'):
                 cur.execute("""
                     UPDATE users
                     SET imap_server = ?, imap_port = ?, imap_user = ?, imap_password = ?, imap_folder = ?
                     WHERE id = ?
                 """, (new_srv.strip(), int(new_port), new_usr.strip(), new_pwd.strip(), new_fld.strip(), current_user["id"]))
                 conn.commit()
-                st.success("Настройки сохранены!")
+                st.success(t("imap_saved"))
                 st.rerun()
 
-    # Панель подтверждения заявок
     if current_user["role"] == "superadmin":
         st.markdown("<hr style='border-color: rgba(255,255,255,0.08); margin: 16px 0;'>", unsafe_allow_html=True)
         cur.execute("SELECT id, name, email FROM users WHERE is_active = 0")
         pending_requests = cur.fetchall()
         req_count = len(pending_requests)
-        header_text = f"🔔 Заявки на доступ ({req_count})" if req_count > 0 else "🔔 Заявки на доступ"
+        header_text = f"{t('access_requests')} ({req_count})" if req_count > 0 else t('access_requests')
         
         with st.expander(header_text, expanded=(req_count > 0)):
             if pending_requests:
@@ -652,21 +1059,20 @@ with st.sidebar:
                     p_id, p_name, p_email = req
                     st.markdown(f"**{p_name}**<br><small style='color: #94a3b8;'>{p_email}</small>", unsafe_allow_html=True)
                     c_appr, c_rej = st.columns(2)
-                    if c_appr.button("✅ Одобрить", key=f"appr_{p_id}", width='stretch'):
+                    if c_appr.button(t("btn_approve"), key=f"appr_{p_id}", width='stretch'):
                         cur.execute("UPDATE users SET is_active = 1, approval_token = NULL WHERE id = ?", (p_id,))
                         conn.commit()
-                        st.success(f"{p_name} активирован!")
+                        st.success(t("user_activated", name=p_name))
                         st.rerun()
-                    if c_rej.button("❌ Отклонить", key=f"rej_{p_id}", width='stretch'):
+                    if c_rej.button(t("btn_reject"), key=f"rej_{p_id}", width='stretch'):
                         cur.execute("DELETE FROM users WHERE id = ?", (p_id,))
                         conn.commit()
-                        st.warning("Отклонено.")
+                        st.warning(t("user_rejected"))
                         st.rerun()
                     st.markdown("<hr style='margin: 8px 0; border-color: rgba(255,255,255,0.06);'>", unsafe_allow_html=True)
             else:
-                st.info("Новых заявок нет.")
+                st.info(t("no_requests"))
 
-# ==================== УВЕДОМЛЕНИЯ О СРОКАХ ====================
 def render_reminders():
     today_str = date.today().strftime("%Y-%m-%d")
     tomorrow_str = (date.today() + timedelta(days=1)).strftime("%Y-%m-%d")
@@ -684,13 +1090,12 @@ def render_reminders():
 
     if due_tomorrow or overdue:
         for inv in due_tomorrow:
-            st.warning(f"⏰ **Срок оплаты завтра ({tomorrow_str}):** Счет #{inv[0]} от **{inv[1]}** на сумму **{inv[2]:.2f} €** (Плательщик: {inv[3]})")
+            st.warning(t("due_tomorrow_alert", date=tomorrow_str, id=inv[0], sender=inv[1], amount=f"{inv[2]:.2f}", payer=inv[3]))
         for inv in overdue:
-            st.error(f"🚨 **Просрочен платеж!** Срок был {inv[3]}. Счет #{inv[0]} от **{inv[1]}** на сумму **{inv[2]:.2f} €**")
+            st.error(t("overdue_alert", date=inv[3], id=inv[0], sender=inv[1], amount=f"{inv[2]:.2f}"))
 
 render_reminders()
 
-# ==================== СТАТИСТИКА (KPI METRICS) ====================
 cur = conn.cursor()
 user_kpi_filter = "" if view_all_users else f" AND created_by = '{current_user['email']}'"
 kpi_df = pd.read_sql_query(f"SELECT amount, status, due_date FROM invoices WHERE status != 'В архиве'{user_kpi_filter}", conn)
@@ -703,42 +1108,40 @@ today_iso = date.today().strftime("%Y-%m-%d")
 m_overdue = kpi_df[(kpi_df["status"] != "Оплачен") & (kpi_df["due_date"] < today_iso)]["amount"].sum() if not kpi_df.empty else 0.0
 
 col_m1, col_m2, col_m3, col_m4 = st.columns(4)
-col_m1.metric("Всего по счетам", f"{m_total:,.2f} €".replace(",", " "))
-col_m2.metric("Оплачено", f"{m_paid:,.2f} €".replace(",", " "))
-col_m3.metric("К оплате", f"{m_pending:,.2f} €".replace(",", " "))
-col_m4.metric("Просрочено", f"{m_overdue:,.2f} €".replace(",", " "), delta=f"-{m_overdue:,.2f} €" if m_overdue > 0 else None, delta_color="inverse")
+col_m1.metric(t("kpi_total"), f"{m_total:,.2f} €".replace(",", " "))
+col_m2.metric(t("kpi_paid"), f"{m_paid:,.2f} €".replace(",", " "))
+col_m3.metric(t("kpi_pending"), f"{m_pending:,.2f} €".replace(",", " "))
+col_m4.metric(t("kpi_overdue"), f"{m_overdue:,.2f} €".replace(",", " "), delta=f"-{m_overdue:,.2f} €" if m_overdue > 0 else None, delta_color="inverse")
 
 st.markdown("<div style='height: 12px;'></div>", unsafe_allow_html=True)
 
-# ==================== ОСНОВНЫЕ ВКЛАДКИ ====================
 tab_registry, tab_archive, tab_senders, tab_payers = st.tabs([
-    "🧾 Реестр и обработка",
-    "📦 Архив счетов",
-    "🏢 Поставщики (Кому)",
-    "👤 Плательщики (Кто)"
+    t("tab_registry"),
+    t("tab_archive"),
+    t("tab_senders"),
+    t("tab_payers")
 ])
 
-# -------------------- ВКЛАДКА 1: РЕЕСТР И ДОБАВЛЕНИЕ --------------------
 with tab_registry:
     col_up, col_table = st.columns([1.0, 2.0])
     
     with col_up:
-        st.markdown("<h4 style='margin-bottom: 10px;'>📥 Внести счет</h4>", unsafe_allow_html=True)
-        mode = st.radio("Способ добавления:", ["⚡ AI-распознавание файла", "✍️ Вручную", "📧 Стянуть из личной почты"], horizontal=True)
+        st.markdown(f"<h4 style='margin-bottom: 10px;'>{t('add_hdr')}</h4>", unsafe_allow_html=True)
+        mode = st.radio(t("mode_label"), [t("mode_ai"), t("mode_manual"), t("mode_mail")], horizontal=True)
         
-        if mode == "⚡ AI-распознавание файла":
-            up_file = st.file_uploader("Загрузите PDF или фото счета:", type=["pdf", "png", "jpg", "jpeg"], key="auto_file")
-            if up_file and st.button("✨ Распознать и сохранить в реестр", width='stretch', type="primary"):
-                with st.spinner("AI анализирует документ и извлекает реквизиты..."):
+        if mode == t("mode_ai"):
+            up_file = st.file_uploader(t("attach_label"), type=["pdf", "png", "jpg", "jpeg"], key="auto_file")
+            if up_file and st.button(t("btn_save_invoice"), width='stretch', type="primary"):
+                with st.spinner(t("ai_processing")):
                     try:
                         raw_bytes = up_file.getvalue()
                         m_type = "application/pdf" if up_file.name.lower().endswith(".pdf") else "image/jpeg"
                         data = extract_invoice_data(raw_bytes, m_type)
                         
-                        sender_name = data.get("sender") or "Не указан"
+                        sender_name = data.get("sender") or "Vendor"
                         amt = float(data.get("amount") or 0.0)
                         d_date = data.get("due_date") or (date.today() + timedelta(days=7)).strftime("%Y-%m-%d")
-                        payer_name = data.get("payer") or "Основной плательщик"
+                        payer_name = data.get("payer") or t("default_payer")
                         iban_val = (data.get("iban") or "").replace(" ", "").strip()
                         ref_val = (str(data.get("reference_number") or "")).replace(" ", "").strip()
                         
@@ -750,22 +1153,22 @@ with tab_registry:
                             VALUES (?, ?, ?, ?, 'Ожидает оплаты', ?, ?, ?, ?)
                         """, (payer_name, sender_name, amt, d_date, current_user["email"], saved_path, iban_val, ref_val))
                         conn.commit()
-                        st.success(f"Добавлено: {sender_name} | {amt:.2f} €")
+                        st.success(t("ai_added", sender=sender_name, amount=f"{amt:.2f}"))
                         st.rerun()
                     except Exception as err:
-                        st.error(f"Ошибка распознавания: {err}")
+                        st.error(t("ai_error", err=err))
 
-        elif mode == "✍️ Вручную":
+        elif mode == t("mode_manual"):
             with st.form("manual_invoice_form", clear_on_submit=True):
-                m_sender = st.text_input("Поставщик (Кому):")
-                m_payer = st.text_input("Плательщик:", value="Основной плательщик")
-                m_amount = st.number_input("Сумма (€):", min_value=0.01, step=0.01, format="%.2f")
-                m_due_date = st.date_input("Срок оплаты:", value=date.today() + timedelta(days=7))
-                m_iban = st.text_input("IBAN получателя (необязательно):", placeholder="EE...")
-                m_ref = st.text_input("Viitenumber (необязательно):")
-                m_file = st.file_uploader("Файл (необязательно):", type=["pdf", "png", "jpg", "jpeg"])
+                m_sender = st.text_input(t("field_vendor"))
+                m_payer = st.text_input(t("field_payer"), value=t("default_payer"))
+                m_amount = st.number_input(t("field_amount"), min_value=0.01, step=0.01, format="%.2f")
+                m_due_date = st.date_input(t("field_due_date"), value=date.today() + timedelta(days=7))
+                m_iban = st.text_input(t("field_iban"), placeholder="EE...")
+                m_ref = st.text_input(t("field_ref"))
+                m_file = st.file_uploader(t("attach_label"), type=["pdf", "png", "jpg", "jpeg"])
                 
-                if st.form_submit_button("Сохранить в реестр", width='stretch', type="primary"):
+                if st.form_submit_button(t("btn_save_invoice"), width='stretch', type="primary"):
                     if m_sender.strip():
                         s_path = ""
                         if m_file:
@@ -776,10 +1179,10 @@ with tab_registry:
                             VALUES (?, ?, ?, ?, 'Ожидает оплаты', ?, ?, ?, ?)
                         """, (m_payer.strip(), m_sender.strip(), float(m_amount), m_due_date.strftime("%Y-%m-%d"), current_user["email"], s_path, m_iban.strip(), m_ref.strip()))
                         conn.commit()
-                        st.success("Счет сохранен!")
+                        st.success(t("invoice_saved"))
                         st.rerun()
                     else:
-                        st.error("Укажите поставщика.")
+                        st.error(t("err_specify_vendor"))
 
         else:
             cur = conn.cursor()
@@ -789,38 +1192,32 @@ with tab_registry:
             srv, prt, usr, pwd, fld = user_mail if user_mail else (None, None, None, None, None)
             is_configured = bool(srv and usr and pwd)
 
-            with st.expander("📖 Памятка: Как подключить почту и стягивать счета", expanded=not is_configured):
-                st.markdown("""
-                ### 🚀 3 шага для автозабора счетов:
-                1. В меню слева откройте **«⚙️ Моя почта (IMAP)»** и введите сервер (`imap.mail.ee`, `imap.gmail.com`), логин и пароль приложения.
-                2. Оставьте входящее письмо от поставщика **непрочитанным** (`UNSEEN`) с прикрепленным файлом **PDF / JPG**.
-                3. Нажмите кнопку **«📥 Проверить почту и загрузить новые счета»** ниже.
-                """)
+            with st.expander(t("mail_guide_title"), expanded=not is_configured):
+                st.markdown(t("mail_guide_body"))
 
             if not is_configured:
-                st.warning("⚠️ Почта еще не настроена в боковом меню слева.")
+                st.warning(t("mail_not_configured"))
             else:
-                st.success(f"Подключен ящик: **{usr}** | Папка: **{fld or 'INBOX'}**")
-                if st.button("📥 Проверить почту и загрузить новые счета", width='stretch', type="primary"):
-                    with st.spinner("Считывание непрочитанных вложений из ящика..."):
+                st.success(t("mail_connected", user=usr, folder=fld or 'INBOX'))
+                if st.button(t("btn_check_mail"), width='stretch', type="primary"):
+                    with st.spinner(t("mail_scanning")):
                         count_added, err_list = fetch_invoices_via_imap(
                             srv, prt or 993, usr, pwd, fld or "INBOX", current_user["email"]
                         )
                         if count_added > 0:
-                            st.success(f"🎉 Успешно добавлено счетов: **{count_added}**!")
+                            st.success(t("mail_success", count=count_added))
                             st.rerun()
                         elif not err_list:
-                            st.info("ℹ️ Непрочитанных писем со счетами не найдено.")
+                            st.info(t("mail_empty"))
                         if err_list:
                             for err_msg in err_list:
                                 st.error(err_msg)
 
     with col_table:
-        st.markdown("<h4 style='margin-bottom: 10px;'>📋 Текущие счета к оплате</h4>", unsafe_allow_html=True)
+        st.markdown(f"<h4 style='margin-bottom: 10px;'>{t('pending_hdr')}</h4>", unsafe_allow_html=True)
         
         cur = conn.cursor()
         query_cols = "id, sender, amount, due_date, status, payer, created_by, file_path, iban, ref_number"
-        
         where_parts = ["status != 'В архиве'"]
         sql_params = []
         if not view_all_users:
@@ -836,15 +1233,15 @@ with tab_registry:
                 inv_id, sender, amount, due_d, status, payer, author, f_path, iban, ref_no = r
                 
                 b_cls = "badge-paid" if status == "Оплачен" else "badge-pending"
-                author_badge = f" • Автор: <b style='color:#e2e8f0;'>{author}</b>" if view_all_users else ""
+                status_text = t("status_paid") if status == "Оплачен" else t("status_pending")
+                author_badge = f" {t('meta_author')} <b style='color:#e2e8f0;'>{author}</b>" if view_all_users else ""
+                due_label = due_d or t("meta_no_due")
                 
-                # Карточка счета
-                st.markdown(f'<div class="invoice-card"><div class="invoice-header"><div class="invoice-sender">#{inv_id} {sender}</div><div class="invoice-amount">{amount:,.2f} €</div></div><div class="invoice-meta"><span class="invoice-badge {b_cls}">{status}</span><span>📅 Срок: <b style="color: #f1f5f9;">{due_d or "Без срока"}</b></span><span>👤 Плательщик: <b style="color: #f1f5f9;">{payer}</b></span>{author_badge}</div></div>', unsafe_allow_html=True)
+                st.markdown(f'<div class="invoice-card"><div class="invoice-header"><div class="invoice-sender">#{inv_id} {sender}</div><div class="invoice-amount">{amount:,.2f} €</div></div><div class="invoice-meta"><span class="invoice-badge {b_cls}">{status_text}</span><span>{t("meta_due")} <b style="color: #f1f5f9;">{due_label}</b></span><span>{t("meta_payer")} <b style="color: #f1f5f9;">{payer}</b></span>{author_badge}</div></div>', unsafe_allow_html=True)
 
                 c_details, c_action = st.columns([2.3, 1.7])
 
                 with c_details:
-                    # ПЛАШКИ IBAN И VIITENUMBER: ПОДПИСЬ СВЕРХУ, ЦИФРЫ СНИЗУ, ВЫДЕЛЕНИЕ МЫШКОЙ
                     if iban or ref_no:
                         parts = ['<div class="req-container">']
                         if iban:
@@ -858,9 +1255,9 @@ with tab_registry:
 
                         if status == "Ожидает оплаты":
                             st.markdown(
-                                '<div style="display: flex; gap: 6px; align-items: center; margin-top: 2px; margin-bottom: 6px; flex-wrap: wrap;">'
-                                '<span style="font-size: 11.5px; color: #94a3b8; font-weight: 600;">Банк:</span>'
-                                '<a class="bank-chip bank-lhv" href="https://www.lhv.ee/ru" target="_blank">LHV</a>'
+                                f'<div style="display: flex; gap: 6px; align-items: center; margin-top: 2px; margin-bottom: 6px; flex-wrap: wrap;">'
+                                f'<span style="font-size: 11.5px; color: #94a3b8; font-weight: 600;">{t("bank_label")}</span>'
+                                '<a class="bank-chip bank-lhv" href="https://www.lhv.ee" target="_blank">LHV</a>'
                                 '<a class="bank-chip bank-swed" href="https://www.swedbank.ee" target="_blank">Swed</a>'
                                 '<a class="bank-chip bank-seb" href="https://www.seb.ee" target="_blank">SEB</a>'
                                 '<a class="bank-chip bank-coop" href="https://www.cooppank.ee" target="_blank">Coop</a>'
@@ -874,7 +1271,7 @@ with tab_registry:
                         mime_t = "application/pdf" if fname.lower().endswith(".pdf") else "image/jpeg"
                         with open(f_path, "rb") as f_obj:
                             st.download_button(
-                                label=f"📄 Файл ({fname})",
+                                label=t("btn_view_file", name=fname),
                                 data=f_obj.read(),
                                 file_name=fname,
                                 mime=mime_t,
@@ -885,45 +1282,43 @@ with tab_registry:
                 with c_action:
                     row1_c1, row1_c2 = st.columns(2)
                     if status == "Ожидает оплаты":
-                        if row1_c1.button("💳 Оплачен", key=f"pay_{inv_id}", width='stretch'):
+                        if row1_c1.button(t("btn_paid"), key=f"pay_{inv_id}", width='stretch'):
                             cur.execute("UPDATE invoices SET status = 'Оплачен', paid_date = ? WHERE id = ?", (date.today().strftime("%Y-%m-%d"), inv_id))
                             conn.commit()
                             st.rerun()
                     
-                    if row1_c2.button("📦 В архив", key=f"arch_{inv_id}", width='stretch'):
+                    if row1_c2.button(t("btn_archive"), key=f"arch_{inv_id}", width='stretch'):
                         cur.execute("UPDATE invoices SET status = 'В архиве' WHERE id = ?", (inv_id,))
                         conn.commit()
                         st.rerun()
 
                     row2_c1, row2_c2 = st.columns(2)
                     with row2_c1:
-                        with st.popover("⏰ Срок"):
+                        with st.popover(t("pop_due_btn")):
                             st.markdown(f"**#{inv_id} {sender}**")
-                            new_rem_date = st.date_input("Новая дата:", value=date.today() + timedelta(days=3), key=f"rem_date_{inv_id}")
-                            if st.button("Сохранить", key=f"save_rem_{inv_id}", width='stretch'):
+                            new_rem_date = st.date_input(t("pop_new_date"), value=date.today() + timedelta(days=3), key=f"rem_date_{inv_id}")
+                            if st.button(t("pop_save_btn"), key=f"save_rem_{inv_id}", width='stretch'):
                                 cur.execute("UPDATE invoices SET due_date = ? WHERE id = ?", (new_rem_date.strftime("%Y-%m-%d"), inv_id))
                                 conn.commit()
                                 st.rerun()
                     with row2_c2:
                         if current_user["role"] == "superadmin" or current_user["email"] == author:
-                            with st.popover("🗑️ Удалить"):
-                                st.write("Удалить счет?")
-                                if st.button("Да", key=f"del_{inv_id}", type="primary", width='stretch'):
+                            with st.popover(t("pop_del_btn")):
+                                st.write(t("pop_del_confirm"))
+                                if st.button(t("btn_yes"), key=f"del_{inv_id}", type="primary", width='stretch'):
                                     cur.execute("DELETE FROM invoices WHERE id = ?", (inv_id,))
                                     conn.commit()
                                     st.rerun()
 
                 st.markdown("<hr style='border-color: rgba(255,255,255,0.06); margin: 8px 0 12px 0;'>", unsafe_allow_html=True)
         else:
-            st.info("Активных счетов нет.")
+            st.info(t("no_pending_invoices"))
 
-# -------------------- ВКЛАДКА 2: АРХИВ СЧЕТОВ --------------------
 with tab_archive:
-    st.markdown("<h4 style='margin-bottom: 12px;'>📦 Архив счетов</h4>", unsafe_allow_html=True)
+    st.markdown(f"<h4 style='margin-bottom: 12px;'>{t('arch_hdr')}</h4>", unsafe_allow_html=True)
     
     cur = conn.cursor()
     arch_query_cols = "id, sender, amount, due_date, status, payer, created_by, file_path, iban, ref_number, paid_date"
-    
     arch_where = ["status = 'В архиве'"]
     arch_params = []
     if not view_all_users:
@@ -936,14 +1331,15 @@ with tab_archive:
 
     if arch_rows:
         total_arch_amt = sum(x[2] for x in arch_rows)
-        st.caption(f"Всего счетов в архиве: **{len(arch_rows)}** | Общая сумма: **{total_arch_amt:,.2f} €**".replace(",", " "))
+        st.caption(t("arch_summary", count=len(arch_rows), total=f"{total_arch_amt:,.2f}".replace(",", " ")))
         
         for r in arch_rows:
             inv_id, sender, amount, due_d, status, payer, author, f_path, iban, ref_no, paid_d = r
-            author_badge = f" • Автор: <b style='color:#e2e8f0;'>{author}</b>" if view_all_users else ""
-            paid_info = f" • Оплачен: {paid_d}" if paid_d else ""
+            author_badge = f" {t('meta_author')} <b style='color:#e2e8f0;'>{author}</b>" if view_all_users else ""
+            paid_info = f" {t('arch_paid_on', date=paid_d)}" if paid_d else ""
+            due_label = due_d or t("meta_no_due")
             
-            st.markdown(f'<div class="invoice-card" style="opacity: 0.88; border-color: rgba(148, 163, 184, 0.2);"><div class="invoice-header"><div class="invoice-sender">#{inv_id} {sender}</div><div class="invoice-amount" style="color: #94a3b8;">{amount:,.2f} €</div></div><div class="invoice-meta"><span class="invoice-badge badge-archived">В АРХИВЕ</span><span>📅 Дедлайн: {due_d or "Без срока"}{paid_info}</span><span>👤 Плательщик: {payer}</span>{author_badge}</div></div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="invoice-card" style="opacity: 0.88; border-color: rgba(148, 163, 184, 0.2);"><div class="invoice-header"><div class="invoice-sender">#{inv_id} {sender}</div><div class="invoice-amount" style="color: #94a3b8;">{amount:,.2f} €</div></div><div class="invoice-meta"><span class="invoice-badge badge-archived">{t("arch_badge")}</span><span>{t("meta_due")} {due_label}{paid_info}</span><span>{t("meta_payer")} {payer}</span>{author_badge}</div></div>', unsafe_allow_html=True)
 
             c_arch_det, c_arch_act = st.columns([2.5, 1.5])
             with c_arch_det:
@@ -963,7 +1359,7 @@ with tab_archive:
                     mime_t = "application/pdf" if fname.lower().endswith(".pdf") else "image/jpeg"
                     with open(f_path, "rb") as f_obj:
                         st.download_button(
-                            label=f"📄 Оригинал ({fname})",
+                            label=t("btn_view_file", name=fname),
                             data=f_obj.read(),
                             file_name=fname,
                             mime=mime_t,
@@ -973,27 +1369,26 @@ with tab_archive:
 
             with c_arch_act:
                 c_ret, c_del = st.columns(2)
-                if c_ret.button("↩️ Вернуть", key=f"rest_{inv_id}", width='stretch'):
+                if c_ret.button(t("btn_restore"), key=f"rest_{inv_id}", width='stretch'):
                     cur.execute("UPDATE invoices SET status = 'Ожидает оплаты' WHERE id = ?", (inv_id,))
                     conn.commit()
-                    st.success("Счет возвращен в работу!")
+                    st.success(t("arch_restored"))
                     st.rerun()
 
                 if current_user["role"] == "superadmin" or current_user["email"] == author:
-                    with c_del.popover("🗑️ Удалить"):
-                        st.write("Удалить навсегда?")
-                        if st.button("Да", key=f"del_arch_{inv_id}", type="primary", width='stretch'):
+                    with c_del.popover(t("pop_del_btn")):
+                        st.write(t("pop_del_perm"))
+                        if st.button(t("btn_yes"), key=f"del_arch_{inv_id}", type="primary", width='stretch'):
                             cur.execute("DELETE FROM invoices WHERE id = ?", (inv_id,))
                             conn.commit()
                             st.rerun()
 
             st.markdown("<hr style='border-color: rgba(255,255,255,0.05); margin: 8px 0 12px 0;'>", unsafe_allow_html=True)
     else:
-        st.info("Архив пуст. Чтобы отправить счет сюда, нажмите «📦 В архив» в основном списке счетов.")
+        st.info(t("arch_empty"))
 
-# -------------------- ВКЛАДКА 3: ПОСТАВЩИКИ --------------------
 with tab_senders:
-    st.markdown("<h4 style='margin-bottom: 12px;'>🏢 Аналитика по поставщикам</h4>", unsafe_allow_html=True)
+    st.markdown(f"<h4 style='margin-bottom: 12px;'>{t('senders_hdr')}</h4>", unsafe_allow_html=True)
     if view_all_users:
         df = pd.read_sql_query("SELECT * FROM invoices WHERE status != 'В архиве'", conn)
     else:
@@ -1002,7 +1397,7 @@ with tab_senders:
     if not df.empty and "sender" in df.columns:
         senders_list = sorted([s for s in df["sender"].dropna().unique() if str(s).strip()])
         if senders_list:
-            selected_sender = st.selectbox("Выберите поставщика:", senders_list)
+            selected_sender = st.selectbox(t("select_vendor"), senders_list)
             s_df = df[df["sender"] == selected_sender]
             
             total_s = s_df["amount"].sum()
@@ -1010,24 +1405,31 @@ with tab_senders:
             pending_s = s_df[s_df["status"] != "Оплачен"]["amount"].sum()
 
             m1, m2, m3 = st.columns(3)
-            m1.metric(f"Всего ({selected_sender})", f"{total_s:,.2f} €".replace(",", " "))
-            m2.metric("Выплачено", f"{paid_s:,.2f} €".replace(",", " "))
-            m3.metric("Остаток к оплате", f"{pending_s:,.2f} €".replace(",", " "))
+            m1.metric(t("kpi_vendor_total", name=selected_sender), f"{total_s:,.2f} €".replace(",", " "))
+            m2.metric(t("kpi_vendor_paid"), f"{paid_s:,.2f} €".replace(",", " "))
+            m3.metric(t("kpi_vendor_pending"), f"{pending_s:,.2f} €".replace(",", " "))
 
             cols_show = ["id", "due_date", "payer", "amount", "iban", "ref_number", "status"]
             cols_exist = [c for c in cols_show if c in s_df.columns]
             table_display = s_df[cols_exist].rename(
-                columns={"id": "№", "due_date": "Срок оплаты", "payer": "Плательщик", "amount": "Сумма (€)", "iban": "IBAN", "ref_number": "Viitenumber", "status": "Статус"}
+                columns={
+                    "id": t("th_num"),
+                    "due_date": t("th_due"),
+                    "payer": t("th_payer"),
+                    "amount": t("th_amount"),
+                    "iban": t("th_iban"),
+                    "ref_number": t("th_ref"),
+                    "status": t("th_status")
+                }
             )
             st.dataframe(table_display, width='stretch', hide_index=True)
         else:
-            st.info("Нет данных о поставщиках.")
+            st.info(t("no_vendor_data"))
     else:
-        st.info("Реестр пуст.")
+        st.info(t("registry_empty"))
 
-# -------------------- ВКЛАДКА 4: ПЛАТЕЛЬЩИКИ --------------------
 with tab_payers:
-    st.markdown("<h4 style='margin-bottom: 12px;'>👤 Аналитика по плательщикам и проектам</h4>", unsafe_allow_html=True)
+    st.markdown(f"<h4 style='margin-bottom: 12px;'>{t('payers_hdr')}</h4>", unsafe_allow_html=True)
     if view_all_users:
         df = pd.read_sql_query("SELECT * FROM invoices WHERE status != 'В архиве'", conn)
     else:
@@ -1036,7 +1438,7 @@ with tab_payers:
     if not df.empty and "payer" in df.columns:
         payers_list = sorted([p for p in df["payer"].dropna().unique() if str(p).strip()])
         if payers_list:
-            selected_payer = st.selectbox("Выберите плательщика:", payers_list)
+            selected_payer = st.selectbox(t("select_payer"), payers_list)
             p_df = df[df["payer"] == selected_payer]
             
             total_p = p_df["amount"].sum()
@@ -1044,25 +1446,33 @@ with tab_payers:
             pending_p = p_df[p_df["status"] != "Оплачен"]["amount"].sum()
 
             p1, p2, p3 = st.columns(3)
-            p1.metric(f"Всего ({selected_payer})", f"{total_p:,.2f} €".replace(",", " "))
-            p2.metric("Оплачено", f"{paid_p:,.2f} €".replace(",", " "))
-            p3.metric("Ожидает оплаты", f"{pending_p:,.2f} €".replace(",", " "))
+            p1.metric(t("kpi_payer_total", name=selected_payer), f"{total_p:,.2f} €".replace(",", " "))
+            p2.metric(t("kpi_payer_paid"), f"{paid_p:,.2f} €".replace(",", " "))
+            p3.metric(t("kpi_payer_pending"), f"{pending_p:,.2f} €".replace(",", " "))
 
             cols_p_show = ["id", "due_date", "sender", "amount", "iban", "ref_number", "status"]
             cols_p_exist = [c for c in cols_p_show if c in p_df.columns]
             table_payer = p_df[cols_p_exist].rename(
-                columns={"id": "№", "due_date": "Срок оплаты", "sender": "Поставщик", "amount": "Сумма (€)", "iban": "IBAN", "ref_number": "Viitenumber", "status": "Статус"}
+                columns={
+                    "id": t("th_num"),
+                    "due_date": t("th_due"),
+                    "sender": t("th_vendor"),
+                    "amount": t("th_amount"),
+                    "iban": t("th_iban"),
+                    "ref_number": t("th_ref"),
+                    "status": t("th_status")
+                }
             )
             st.dataframe(table_payer, width='stretch', hide_index=True)
 
             csv_data = p_df.to_csv(index=False).encode('utf-8-sig')
             st.download_button(
-                label=f"📥 Скачать выписку по {selected_payer} (CSV)",
+                label=t("btn_csv_export", name=selected_payer),
                 data=csv_data,
                 file_name=f"report_{selected_payer}_{date.today().strftime('%Y-%m-%d')}.csv",
                 mime="text/csv"
             )
         else:
-            st.info("Нет данных о плательщиках.")
+            st.info(t("no_payer_data"))
     else:
-        st.info("Реестр пуст.")
+        st.info(t("registry_empty"))
